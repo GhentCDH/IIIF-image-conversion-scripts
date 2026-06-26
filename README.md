@@ -9,6 +9,7 @@ image server: **JPEG 2000** (`.jp2`), **High Throughput JPEG 2000 / HTJ2K**
 
 - `scripts/` — the converters, the shared `common.sh` helper, and `validate_j2k.sh`.
 - `test/` — `input/` source images, `output/` results, and `run_all_converters.sh` (the batch driver).
+- `install.sh` — optional installer that symlinks the converters as `iiif-*` commands.
 - `README.md`, `iiif_image_conversion.md` — documentation and notes.
 
 ## Requirements
@@ -65,6 +66,23 @@ tool/extension checks, usage). It is not meant to be run directly.
   ```
   Defaults to `test/output`; reports PASS/FAIL per file and exits non-zero on
   any failure.
+
+## Install (optional)
+
+To run the converters from anywhere as commands, symlink them into a bin
+directory with `install.sh`. They are installed with an `iiif-` prefix and
+hyphenated names, e.g. `scripts/kakadu_j2k_lossy.sh` → `iiif-kakadu-j2k-lossy`,
+`scripts/validate_j2k.sh` → `iiif-validate-j2k`.
+
+```sh
+./install.sh              # per-user, into ~/.local/bin (no sudo)
+./install.sh --global     # system-wide, into /usr/local/bin (may need sudo)
+./install.sh --uninstall  # remove the symlinks (add --global to match)
+```
+
+This works because each script resolves `common.sh` relative to its real
+location, so the symlink runs correctly from anywhere. `common.sh` (sourced
+helper) and `run_all_converters.sh` (uses relative paths) are not installed.
 
 ## JPEG 2000 options explained
 
