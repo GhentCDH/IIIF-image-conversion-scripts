@@ -1,0 +1,5 @@
+# Lossy HTJ2K (.jph) via Kakadu. --prepare transcodes any input to
+# uncompressed TIFF first (kdu_compress only reads uncompressed TIFF).
+label   = Kakadu, HTJ2K (JPH), lossy (~3 bpp)
+ext     = jph
+command = kakadu_htj2k_lossy.sh --prepare {in} {out}

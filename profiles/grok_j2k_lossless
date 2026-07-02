@@ -1,0 +1,4 @@
+# Lossless JPEG 2000 (JP2) via Grok. Grok reads most formats natively (libtiff).
+label   = Grok, JPEG 2000 (JP2), lossless
+ext     = jp2
+command = grok_j2k_lossless.sh {in} {out}

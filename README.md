@@ -7,7 +7,9 @@ image server: **JPEG 2000** (`.jp2`), **High Throughput JPEG 2000 / HTJ2K**
 
 ## Layout
 
-- `scripts/` — the converters, the shared `common.sh` helper, and `validate_j2k.sh`.
+- `scripts/` — the standalone file-to-file converters, the shared `common.sh` helper, and `validate_j2k.sh`.
+- `convert_folder.sh` — batch/folder converter: walks a source tree, converts images with a chosen **profile**, copies metadata, tracks already-converted files, optional daemon mode.
+- `profiles/` — one file per conversion profile (`id` = filename). Each declares an output extension and a command.
 - `test/` — `input/` source images, `output/` results, and `run_all_converters.sh` (the batch driver).
 - `install.sh` — optional installer that symlinks the converters as `iiif-*` commands.
 - `README.md`, `iiif_image_conversion.md` — documentation and notes.
@@ -50,6 +52,106 @@ All converters share the same interface:
 `scripts/common.sh` is a shared helper sourced by every converter (argument parsing,
 tool/extension checks, usage). It is not meant to be run directly.
 
+## Batch / folder conversion: `convert_folder.sh`
+
+For converting whole directory trees, `convert_folder.sh` walks a source folder,
+converts source images with a chosen **profile**, copies extra files (metadata)
+verbatim, and tracks which inputs are already converted so re-runs only do new or
+changed work. It can also run as a polling daemon.
+
+```
+./convert_folder.sh --profile <id|path> -i <input_dir> -o <output_dir> [options]
+```
+
+What it does each run:
+
+1. **Scan** the source tree and build a list of actions (this phase has no side
+   effects, so `--simulate` can print exactly what *would* happen).
+2. **Process**: create the mirrored output folders, copy metadata files, and convert
+   images (in parallel with `--parallel`). Each conversion's output is captured to a
+   per-job log so parallel output never interleaves; a summary of OK/failed is printed.
+
+How "already converted" is decided: the profile pins the **output extension**, so the
+target name is `image.<ext>` (e.g. `page.tif` → `page.jp2`). A file is skipped when a
+non-empty target exists and is newer than the source — unless `--force`.
+
+### Options
+
+| Option | Meaning |
+|--------|---------|
+| `--profile <id\|path>` | **Required.** Profile id (looked up in `profiles/`) or a path to a profile file. |
+| `-i, --input <dir>` | Source directory (walked recursively). |
+| `-o, --output <dir>` | Destination directory (structure mirrored). |
+| `--convert <exts>` | Comma-separated extensions to convert. Default `tif,tiff,jpg,jpeg,png`. |
+| `--copy <exts\|all>` | Comma-separated extensions to copy verbatim, or `all` for every non-converted file. Default `yaml,xml,txt`. (An extension in both `--convert` and `--copy` is converted.) |
+| `-f, --force` | Reconvert/recopy even if the target is up to date. |
+| `--safe-time <sec>` | Ignore files modified within the last *n* seconds (still being written). Default `30`. |
+| `--modified <expr>` | Only consider files modified after this time (anything `date -d` accepts, e.g. `'2 days ago'`). |
+| `-j, --parallel <n>` | Max parallel conversions. Default `1`. |
+| `-S, --simulate` | Scan only; print the planned actions, change nothing. |
+| `--validate` | Validate produced `.jp2`/`.jph` outputs with `validate_j2k.sh`. |
+| `--require <name…>` | Only process a folder if it contains one of these filenames. |
+| `-d, --daemon` | Loop forever, re-scanning each cycle. |
+| `--sleep-time <sec>` | Seconds between daemon cycles. Default `60`. |
+| `-v, --verbose` | More logging; echo each conversion's full output. |
+| `-l, --list-profiles` | List available profiles (id, extension, command) and exit. |
+| `-h, --help` | Show help. |
+
+Examples:
+
+```sh
+# Dry run: see what would be converted/copied.
+./convert_folder.sh --profile kakadu_j2k_lossy -i ./src -o ./out --simulate
+
+# Convert to lossy JP2, 4 at a time, validating the results.
+./convert_folder.sh --profile kakadu_j2k_lossy -i ./src -o ./out -j 4 --validate
+
+# Watch a drop folder, copying alto XML and yaml alongside the images.
+./convert_folder.sh --profile grok_j2k_lossless -i ./incoming -o ./iiif \
+    --copy xml,yaml -d --sleep-time 30
+```
+
+## Conversion profiles
+
+A **profile** is the registration layer `convert_folder.sh` uses to know *what* to run
+and *what extension* it produces (so it can name and track targets). It is a small file
+in `profiles/` whose filename is the profile id:
+
+```
+# profiles/kakadu_j2k_lossy
+label   = Kakadu, JPEG 2000 (JP2), lossy (~3 bpp)
+ext     = jp2
+command = kakadu_j2k_lossy.sh --prepare {in} {out}
+```
+
+- `label` — *optional* human-readable summary shown by `--list-profiles` (falls back to
+  the command when omitted).
+- `ext` — the single output extension the command produces.
+- `command` — the conversion command. `{in}` and `{out}` are replaced with the input
+  and output paths (quoted automatically). The command may call one of the standalone
+  `scripts/*.sh` converters (they're put on `PATH` automatically) **or** any tool
+  directly — so a custom one-liner is a valid profile without writing a script:
+
+```
+# profiles/my_grok_jp2
+ext     = jp2
+command = grk_compress -i {in} -o {out} -r 8 -n 7 -c [256,256] -p RPCL -I --plt --tlm
+```
+
+`--profile` accepts a bare id (resolved against `profiles/`) or a path to any profile
+file. Built-in profiles ship for every standalone converter:
+
+| Profile id | ext |
+|------------|-----|
+| `kakadu_j2k_lossy`, `kakadu_j2k_lossless` | jp2 |
+| `kakadu_htj2k_lossy`, `kakadu_htj2k_lossless` | jph |
+| `grok_j2k_lossy`, `grok_j2k_lossless` | jp2 |
+| `grok_htj2k_lossless` | jph |
+| `vips_ptiff_lossy_jpeg`, `vips_ptiff_lossless` | tif |
+
+The Kakadu profiles include `--prepare` so they accept any input (compressed TIFF, PNG,
+JPEG, …); see the Kakadu input-formats note below.
+
 ## Helper scripts
 
 - **`test/run_all_converters.sh`** — batch-converts every image in `test/input` with every
@@ -72,7 +174,8 @@ tool/extension checks, usage). It is not meant to be run directly.
 To run the converters from anywhere as commands, symlink them into a bin
 directory with `install.sh`. They are installed with an `iiif-` prefix and
 hyphenated names, e.g. `scripts/kakadu_j2k_lossy.sh` → `iiif-kakadu-j2k-lossy`,
-`scripts/validate_j2k.sh` → `iiif-validate-j2k`.
+`scripts/validate_j2k.sh` → `iiif-validate-j2k`, and the batch orchestrator
+`convert_folder.sh` → `iiif-convert-folder`.
 
 ```sh
 ./install.sh              # per-user, into ~/.local/bin (no sudo)
@@ -83,6 +186,12 @@ hyphenated names, e.g. `scripts/kakadu_j2k_lossy.sh` → `iiif-kakadu-j2k-lossy`
 This works because each script resolves `common.sh` relative to its real
 location, so the symlink runs correctly from anywhere. `common.sh` (sourced
 helper) and `run_all_converters.sh` (uses relative paths) are not installed.
+
+The installer only **symlinks** — nothing is copied. In particular `iiif-convert-folder`
+finds `scripts/` and `profiles/` relative to its real location in this repo, so **keep
+the repo in place** after installing. `profiles/` is not (and need not be) installed:
+add custom profiles to this repo's `profiles/` directory, or pass a full path to
+`--profile`.
 
 ## JPEG 2000 options explained
 
@@ -112,9 +221,7 @@ target (`-r`/`-q`) with `-M 64` is silently ignored, and the encoder always emit
 near-lossless codestream (verified: `-r 8`, `-r 50`, and no rate flag all produce
 the same ~110 MB output). The reason is structural — the HT cleanup pass encodes a
 code-block in one shot and offers far fewer truncation points than the standard
-arithmetic coder, so Grok's HT path here cannot truncate to a bitrate. Additionally,
-Grok's `.jph` files fail jpylyzer validation (`compatibilityListIsValid = False`)
-because the JPH brand is missing from the file's compatibility box.
+arithmetic coder, so Grok's HT path here cannot truncate to a bitrate.
 
 For **lossy** HTJ2K, use **`kakadu_htj2k_lossy.sh`** instead — Kakadu implements
 optimized HT truncation (and the `Cplex` complexity constraint) and hits the target

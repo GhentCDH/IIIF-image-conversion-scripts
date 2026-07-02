@@ -1,0 +1,5 @@
+# Lossless HTJ2K (.jph) via Kakadu. --prepare transcodes any input to
+# uncompressed TIFF first (kdu_compress only reads uncompressed TIFF).
+label   = Kakadu, HTJ2K (JPH), lossless
+ext     = jph
+command = kakadu_htj2k_lossless.sh --prepare {in} {out}

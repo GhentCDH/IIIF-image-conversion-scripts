@@ -1,0 +1,5 @@
+# Lossy JPEG 2000 (JP2) via Kakadu. --prepare transcodes any input to
+# uncompressed TIFF first (kdu_compress only reads uncompressed TIFF).
+label   = Kakadu, JPEG 2000 (JP2), lossy (~3 bpp)
+ext     = jp2
+command = kakadu_j2k_lossy.sh --prepare {in} {out}

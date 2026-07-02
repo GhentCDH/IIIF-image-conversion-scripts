@@ -16,6 +16,7 @@
 # Installed commands are prefixed and hyphenated, e.g.
 #   scripts/kakadu_j2k_lossy.sh -> iiif-kakadu-j2k-lossy
 #   scripts/validate_j2k.sh     -> iiif-validate-j2k
+#   convert_folder.sh           -> iiif-convert-folder
 #
 # The sourced helper common.sh is not installed; run_all_converters.sh is not
 # either (it calls converters by relative path, not via PATH).
@@ -50,12 +51,14 @@ cmd_name() {
 }
 
 # Scripts exposed as commands: every script under scripts/ except the sourced
-# helper common.sh.
+# helper common.sh, plus the top-level convert_folder.sh orchestrator (which
+# resolves scripts/ and profiles/ via its real path, so it works as a symlink).
 scripts=()
 for f in "$converters_dir"/*.sh; do
     [ "$(basename "$f")" = "common.sh" ] && continue
     scripts+=("$f")
 done
+scripts+=("$script_dir/convert_folder.sh")
 
 if [ "$uninstall" -eq 1 ]; then
     removed=0

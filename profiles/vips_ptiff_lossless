@@ -1,0 +1,4 @@
+# Pyramidal tiled TIFF, lossless (Zstandard) via libvips.
+label   = libvips, pyramidal TIFF, lossless (Zstandard)
+ext     = tif
+command = vips_ptiff_lossless.sh {in} {out}

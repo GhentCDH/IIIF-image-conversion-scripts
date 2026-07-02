@@ -1,0 +1,5 @@
+# Lossless JPEG 2000 (JP2) via Kakadu. --prepare transcodes any input to
+# uncompressed TIFF first (kdu_compress only reads uncompressed TIFF).
+label   = Kakadu, JPEG 2000 (JP2), lossless
+ext     = jp2
+command = kakadu_j2k_lossless.sh --prepare {in} {out}

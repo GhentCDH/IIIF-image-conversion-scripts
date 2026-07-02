@@ -1,0 +1,4 @@
+# Pyramidal tiled TIFF, lossy (JPEG Q90) via libvips.
+label   = libvips, pyramidal TIFF, lossy (JPEG Q90)
+ext     = tif
+command = vips_ptiff_lossy_jpeg.sh {in} {out}

@@ -1,0 +1,5 @@
+# Lossless HTJ2K (.jph) via Grok. (Grok has no working lossy HTJ2K — use the
+# kakadu_htj2k_lossy profile for that.)
+label   = Grok, HTJ2K (JPH), lossless
+ext     = jph
+command = grok_htj2k_lossless.sh {in} {out}
